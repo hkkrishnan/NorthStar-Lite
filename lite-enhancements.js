@@ -60,14 +60,14 @@
     const captureWrap = create('div', { className: 'lite-capture-wrap' });
     const capture = create('input', { className: 'lite-capture', id: 'lite-capture', placeholder: 'Add a task…', 'aria-label': 'Add a task or search' });
     const modeButton = create('button', { className: 'lite-mode-button', type: 'button', 'aria-label': 'Search tasks', textContent: '⌕' });
-    const save = create('button', { className: 'lite-save', type: 'button', 'aria-label': 'Save to Markdown', title: 'Save to Markdown', textContent: '♧' });
+    const save = create('button', { className: 'lite-save', type: 'button', 'aria-label': 'Save to Markdown', title: 'Save to Markdown', textContent: '☁' });
     const menuButton = create('button', { className: 'lite-menu-button', type: 'button', 'aria-label': 'Open file menu', title: 'File menu', textContent: '•••' });
     const menu = create('div', { className: 'lite-menu', role: 'menu', hidden: true });
     const menuTitle = create('div', { className: 'lite-menu-title', textContent: 'File' });
     const menuItems = [
       ['⇩', 'Download copy', () => clickLegacy('Download copy')],
       ['⇧', 'Import Markdown', () => clickLegacy('Import replacement')],
-      ['↶', 'Restore workspace', () => clickLegacy(`Recovery (${profileName().toLowerCase()})`)],
+      ['↶', `Restore ${profileName().toLowerCase()}`, () => clickLegacy(`Recovery (${profileName().toLowerCase()})`)],
       ['⚙', 'Settings', () => window.dispatchEvent(new CustomEvent('northstar:settings'))],
     ];
     menu.append(menuTitle, ...menuItems.map(([icon, label, action]) => {
@@ -91,7 +91,7 @@
     const taskLayer = create('div', { className: 'lite-task-layer', role: 'list', 'aria-label': 'Active tasks' });
     const notes = create('section', { className: 'lite-notes', 'aria-label': `${profileName()} notes` });
     const notesHeading = create('div', { className: 'lite-notes-heading' }, [create('span', { className: 'notes-glyph', textContent: '▧' }), create('strong', { textContent: 'Notes' })]);
-    const notesInput = create('textarea', { className: 'lite-notes-input', placeholder: 'Jot down ideas, thoughts, or reminders…', 'aria-label': 'Notes' });
+    const notesInput = create('textarea', { className: 'lite-notes-input', id: 'lite-notes-input', placeholder: 'Jot down ideas, thoughts, or reminders…', 'aria-label': 'Notes', spellcheck: 'true' });
     notes.append(notesHeading, notesInput);
     stage.append(vertical, horizontal, taskLayer, notes);
     shell.append(topbar, stage);

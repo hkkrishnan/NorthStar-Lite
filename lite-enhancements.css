@@ -1,5 +1,5 @@
 :root {
-  --lite-paper: #fbfaf6;
+  --lite-paper: #fcfbf8;
   --lite-ink: #172b45;
   --lite-muted: #7d8da3;
   --lite-line: #c8d3df;
@@ -11,7 +11,7 @@
 body:has(.lite-canvas) {
   margin: 0;
   min-width: 320px;
-  background: var(--lite-paper);
+  background: #f1f3f3;
   color: var(--lite-ink);
   font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
@@ -19,13 +19,18 @@ body:has(.lite-canvas) {
 .lite-canvas {
   position: relative;
   z-index: 10;
-  min-height: 100vh;
+  width: min(100%, 1536px);
+  min-height: calc(100vh - 24px);
+  margin: 12px auto;
   overflow: hidden;
-  padding: clamp(24px, 3vw, 42px) clamp(24px, 4vw, 64px);
+  padding: clamp(24px, 3vw, 42px) clamp(24px, 3.1vw, 48px);
   box-sizing: border-box;
   background-color: var(--lite-paper);
   background-image: radial-gradient(#d6dfe8 0.8px, transparent 0.8px);
   background-size: 27px 27px;
+  border: 1px solid #e3e8ec;
+  border-radius: 24px;
+  box-shadow: 0 12px 36px #65798b12;
 }
 
 .lite-topbar { position: relative; z-index: 4; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
@@ -33,20 +38,21 @@ body:has(.lite-canvas) {
 .lite-identity { gap: 22px; min-width: 0; }
 .lite-date { white-space: nowrap; font-size: clamp(18px, 2vw, 25px); letter-spacing: -0.03em; }
 .lite-switcher { display: inline-flex; padding: 2px; border: 1px solid #d3dce6; border-radius: 13px; background: #ffffff9c; }
-.lite-switch { border: 0; border-radius: 10px; padding: 9px 18px; color: var(--lite-ink); background: transparent; font: inherit; cursor: pointer; }
+.lite-switch { border: 0 !important; border-radius: 10px; padding: 9px 18px; color: var(--lite-ink); background: transparent; font: inherit; cursor: pointer; box-shadow: none !important; }
 .lite-switch.active { background: #e2f2ef; box-shadow: 0 1px 3px #29466112; }
 .lite-actions { gap: 16px; }
-.lite-capture-wrap { width: min(455px, 38vw); min-width: 240px; padding: 0 13px 0 22px; border: 1px solid #d5dfe8; border-radius: 13px; background: #fffdfacc; box-shadow: 0 6px 20px #37506e0d; }
-.lite-capture { min-width: 0; flex: 1; height: 46px; border: 0; outline: 0; color: var(--lite-ink); background: transparent; font: inherit; font-size: 16px; }
+.lite-capture-wrap { width: min(455px, 38vw); min-width: 240px; padding: 0 13px 0 22px; border: 1px solid #d9e2e8 !important; border-radius: 13px; background: #fffdfacc; box-shadow: 0 6px 20px #37506e0d !important; }
+.lite-capture-wrap:focus-within { border-color: #b8d0ca !important; box-shadow: 0 0 0 2px #dcebe5 !important; }
+.lite-capture { min-width: 0; flex: 1; height: 46px; border: 0 !important; outline: 0 !important; color: var(--lite-ink); background: transparent !important; font: inherit; font-size: 16px; box-shadow: none !important; }
 .lite-capture::placeholder { color: #91a0b4; }
-.lite-mode-button, .lite-save, .lite-menu-button { border: 0; color: var(--lite-ink); background: transparent; cursor: pointer; }
+.lite-mode-button, .lite-save, .lite-menu-button { border: 0 !important; color: var(--lite-ink); background: transparent !important; cursor: pointer; box-shadow: none !important; }
 .lite-mode-button { font-size: 29px; line-height: 1; }
 .lite-save, .lite-menu-button { width: 42px; height: 42px; border-radius: 11px; font-size: 25px; }
 .lite-save:hover, .lite-menu-button:hover { background: #e9eff4; }
 .lite-menu-button { letter-spacing: 3px; font-size: 17px; }
-.lite-menu { position: absolute; top: 54px; right: 0; width: 210px; padding: 14px 0; border: 1px solid #d6dfe8; border-radius: 15px; background: #fffefa; box-shadow: 0 18px 45px #20375022; }
+.lite-menu { position: absolute; top: 54px; right: 0; width: 210px; padding: 13px 0; border: 1px solid #e0e7eb !important; border-radius: 15px; background: #fffefa; box-shadow: 0 18px 45px #20375022 !important; overflow: hidden; }
 .lite-menu-title { padding: 2px 18px 10px; color: var(--lite-ink); font-size: 14px; font-weight: 700; }
-.lite-menu-item { display: flex; align-items: center; gap: 12px; width: 100%; padding: 11px 18px; border: 0; color: var(--lite-ink); background: transparent; text-align: left; font: inherit; cursor: pointer; }
+.lite-menu-item { display: flex !important; align-items: center; gap: 12px; width: 100%; min-height: 38px; padding: 8px 18px !important; border: 0 !important; border-radius: 0 !important; color: var(--lite-ink); background: transparent !important; text-align: left; font: inherit; font-size: 14px; cursor: pointer; box-shadow: none !important; }
 .lite-menu-item:hover, .lite-menu-item:focus-visible { background: #edf5f4; outline: 0; }
 .lite-menu-icon { width: 18px; color: #5f758d; text-align: center; }
 
@@ -83,7 +89,8 @@ body:has(.lite-canvas) {
 .lite-notes { position: absolute; z-index: 1; bottom: 2%; left: 0; width: min(48%, 680px); min-height: 170px; padding: 22px 26px; box-sizing: border-box; border: 1px solid #d7e0e8; border-radius: 16px; background: #ffffff55; box-shadow: 0 8px 25px #59718708; }
 .lite-notes-heading { display: flex; align-items: center; gap: 12px; color: #7288a1; font-size: 18px; }
 .notes-glyph { font-size: 23px; }
-.lite-notes-input { width: 100%; min-height: 115px; box-sizing: border-box; margin-top: 8px; padding: 0; border: 0; outline: 0; resize: vertical; color: #768ba4; background: transparent; font: inherit; line-height: 1.7; }
+.lite-notes-input { width: 100%; min-height: 115px; box-sizing: border-box; margin-top: 8px; padding: 0; border: 0 !important; outline: 0 !important; resize: vertical; color: #637b96; background: transparent !important; font: inherit; line-height: 1.7; pointer-events: auto; box-shadow: none !important; }
+.lite-notes-input:focus-visible { outline: 2px solid #9abbb2 !important; outline-offset: 4px; border-radius: 4px; }
 .lite-notes-input::placeholder { color: #9babc0; }
 
 /* Keep the original React shell mounted as the storage and file-action layer. */
@@ -95,7 +102,7 @@ body:has(.lite-canvas) {
 .legacy-app .lite-delete-task:hover, .legacy-app .lite-delete-task:focus-visible { background: #ffe3e1; outline: 2px solid #df8a88; outline-offset: 2px; }
 
 @media (max-width: 780px) {
-  .lite-canvas { padding: 18px 16px 26px; overflow-y: auto; }
+  .lite-canvas { min-height: calc(100vh - 12px); margin: 6px auto; padding: 18px 16px 26px; border-radius: 18px; overflow-y: auto; }
   .lite-topbar { align-items: flex-start; flex-wrap: wrap; }
   .lite-identity { width: 100%; justify-content: space-between; gap: 10px; }
   .lite-actions { width: 100%; gap: 8px; }
