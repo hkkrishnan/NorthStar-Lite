@@ -70,8 +70,11 @@
       ['↶', `Restore ${profileName().toLowerCase()}`, () => clickLegacy(`Recovery (${profileName().toLowerCase()})`)],
       ['⚙', 'Settings', () => window.dispatchEvent(new CustomEvent('northstar:settings'))],
     ];
+    let restoreMenuLabel;
     menu.append(menuTitle, ...menuItems.map(([icon, label, action]) => {
-      const item = create('button', { className: 'lite-menu-item', role: 'menuitem' }, [create('span', { className: 'lite-menu-icon', textContent: icon }), create('span', { textContent: label })]);
+      const labelNode = create('span', { textContent: label });
+      const item = create('button', { className: 'lite-menu-item', role: 'menuitem' }, [create('span', { className: 'lite-menu-icon', textContent: icon }), labelNode]);
+      if (label.startsWith('Restore ')) restoreMenuLabel = labelNode;
       item.addEventListener('click', () => { action(); menu.hidden = true; });
       return item;
     }));
@@ -134,6 +137,7 @@
       if (current !== lastProfile) { lastProfile = current; loadNotes(); capture.value = ''; }
       date.textContent = new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
       date.dateTime = localDate();
+      if (restoreMenuLabel) restoreMenuLabel.textContent = `Restore ${current.toLowerCase()}`;
       qsa('.lite-switch', switcher).forEach((button) => { const active = button.dataset.workspace === current.toLowerCase(); button.classList.toggle('active', active); button.setAttribute('aria-pressed', String(active)); });
       const query = searchMode ? capture.value.trim().toLowerCase() : '';
       taskLayer.replaceChildren();
