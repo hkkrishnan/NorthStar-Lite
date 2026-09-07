@@ -1,0 +1,119 @@
+:root {
+  --lite-paper: #fbfaf6;
+  --lite-ink: #172b45;
+  --lite-muted: #7d8da3;
+  --lite-line: #c8d3df;
+  --lite-green: #35ae8a;
+  --lite-coral: #f26c6e;
+  --lite-amber: #f2b41c;
+}
+
+body:has(.lite-canvas) {
+  margin: 0;
+  min-width: 320px;
+  background: var(--lite-paper);
+  color: var(--lite-ink);
+  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.lite-canvas {
+  position: relative;
+  z-index: 10;
+  min-height: 100vh;
+  overflow: hidden;
+  padding: clamp(24px, 3vw, 42px) clamp(24px, 4vw, 64px);
+  box-sizing: border-box;
+  background-color: var(--lite-paper);
+  background-image: radial-gradient(#d6dfe8 0.8px, transparent 0.8px);
+  background-size: 27px 27px;
+}
+
+.lite-topbar { position: relative; z-index: 4; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.lite-identity, .lite-actions, .lite-capture-wrap { display: flex; align-items: center; }
+.lite-identity { gap: 22px; min-width: 0; }
+.lite-date { white-space: nowrap; font-size: clamp(18px, 2vw, 25px); letter-spacing: -0.03em; }
+.lite-switcher { display: inline-flex; padding: 2px; border: 1px solid #d3dce6; border-radius: 13px; background: #ffffff9c; }
+.lite-switch { border: 0; border-radius: 10px; padding: 9px 18px; color: var(--lite-ink); background: transparent; font: inherit; cursor: pointer; }
+.lite-switch.active { background: #e2f2ef; box-shadow: 0 1px 3px #29466112; }
+.lite-actions { gap: 16px; }
+.lite-capture-wrap { width: min(455px, 38vw); min-width: 240px; padding: 0 13px 0 22px; border: 1px solid #d5dfe8; border-radius: 13px; background: #fffdfacc; box-shadow: 0 6px 20px #37506e0d; }
+.lite-capture { min-width: 0; flex: 1; height: 46px; border: 0; outline: 0; color: var(--lite-ink); background: transparent; font: inherit; font-size: 16px; }
+.lite-capture::placeholder { color: #91a0b4; }
+.lite-mode-button, .lite-save, .lite-menu-button { border: 0; color: var(--lite-ink); background: transparent; cursor: pointer; }
+.lite-mode-button { font-size: 29px; line-height: 1; }
+.lite-save, .lite-menu-button { width: 42px; height: 42px; border-radius: 11px; font-size: 25px; }
+.lite-save:hover, .lite-menu-button:hover { background: #e9eff4; }
+.lite-menu-button { letter-spacing: 3px; font-size: 17px; }
+.lite-menu { position: absolute; top: 54px; right: 0; width: 210px; padding: 14px 0; border: 1px solid #d6dfe8; border-radius: 15px; background: #fffefa; box-shadow: 0 18px 45px #20375022; }
+.lite-menu-title { padding: 2px 18px 10px; color: var(--lite-ink); font-size: 14px; font-weight: 700; }
+.lite-menu-item { display: flex; align-items: center; gap: 12px; width: 100%; padding: 11px 18px; border: 0; color: var(--lite-ink); background: transparent; text-align: left; font: inherit; cursor: pointer; }
+.lite-menu-item:hover, .lite-menu-item:focus-visible { background: #edf5f4; outline: 0; }
+.lite-menu-icon { width: 18px; color: #5f758d; text-align: center; }
+
+.lite-stage { position: relative; min-height: calc(100vh - 135px); margin-top: 18px; }
+.lite-axis { position: absolute; z-index: 1; color: #8294aa; font-size: 14px; pointer-events: none; }
+.lite-axis-x { top: 47%; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.lite-axis-x::before { content: ""; position: absolute; left: 7%; right: 7%; top: 50%; border-top: 1px dashed #9aacc0; }
+.lite-axis-x::after { content: "→"; position: absolute; right: 5.2%; top: calc(50% - 12px); color: #90a3b9; font-size: 18px; }
+.lite-axis-x > .axis-label:first-child::before { content: "←"; margin-right: 7px; font-size: 18px; }
+.lite-axis-x .axis-label { position: relative; z-index: 1; background: var(--lite-paper); padding: 0 8px; white-space: nowrap; }
+.timeline { position: absolute; z-index: 1; left: 12%; right: 12%; top: 13px; display: flex; justify-content: space-between; color: #899ab0; font-size: 12px; }
+.timeline span::before { content: ""; display: block; width: 5px; height: 5px; margin: -10px auto 6px; border-radius: 50%; background: #a5b6c8; }
+.lite-axis-y { top: 5%; bottom: 5%; left: 50%; width: 0; border-left: 1px dashed #9aacc0; }
+.lite-axis-y::before { content: "↑"; position: absolute; top: -18px; left: -8px; color: #90a3b9; font-size: 18px; }
+.lite-axis-y::after { content: "↓"; position: absolute; bottom: -20px; left: -8px; color: #90a3b9; font-size: 18px; }
+.lite-axis-y .axis-label { position: absolute; left: -39px; width: 77px; color: #8294aa; background: var(--lite-paper); text-align: center; white-space: nowrap; }
+.lite-axis-y .axis-important { top: -31px; }
+.lite-axis-y .axis-not-important { bottom: -30px; }
+.lite-task-layer { position: absolute; inset: 0; z-index: 2; }
+.lite-task { position: absolute; top: var(--y); left: var(--x); display: flex; align-items: center; gap: 10px; max-width: min(300px, 28vw); transform: translate(-3px, -50%); }
+.lite-task-dot { width: 18px; height: 18px; flex: 0 0 18px; border-radius: 50%; box-shadow: 0 1px 2px #1b304313; }
+.task-schedule .lite-task-dot { background: var(--lite-green); }
+.task-do-first .lite-task-dot { background: var(--lite-coral); }
+.task-reconsider .lite-task-dot { background: var(--lite-amber); }
+.task-later .lite-task-dot { background: #90b6a9; }
+.lite-task-label { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; min-width: 0; padding: 0; border: 0; color: var(--lite-ink); background: transparent; text-align: left; font: inherit; cursor: pointer; }
+.lite-task-title { overflow-wrap: anywhere; font-size: 16px; line-height: 1.25; }
+.lite-task-label:hover .lite-task-title, .lite-task-label:focus-visible .lite-task-title { text-decoration: underline; text-decoration-color: #b8c7d5; text-underline-offset: 3px; }
+.lite-task-due { color: #8797aa; font-size: 13px; white-space: nowrap; }
+.lite-task-due.is-today, .lite-task-due.is-overdue { color: #e55d61; }
+.lite-task:focus-within { outline: 2px solid #7da9b2; outline-offset: 5px; border-radius: 5px; }
+.lite-task.is-dragging { opacity: .45; }
+
+.lite-notes { position: absolute; z-index: 1; bottom: 2%; left: 0; width: min(48%, 680px); min-height: 170px; padding: 22px 26px; box-sizing: border-box; border: 1px solid #d7e0e8; border-radius: 16px; background: #ffffff55; box-shadow: 0 8px 25px #59718708; }
+.lite-notes-heading { display: flex; align-items: center; gap: 12px; color: #7288a1; font-size: 18px; }
+.notes-glyph { font-size: 23px; }
+.lite-notes-input { width: 100%; min-height: 115px; box-sizing: border-box; margin-top: 8px; padding: 0; border: 0; outline: 0; resize: vertical; color: #768ba4; background: transparent; font: inherit; line-height: 1.7; }
+.lite-notes-input::placeholder { color: #9babc0; }
+
+/* Keep the original React shell mounted as the storage and file-action layer. */
+.legacy-app { position: fixed !important; inset: 0 !important; z-index: 4 !important; pointer-events: none !important; overflow: visible !important; background: transparent !important; }
+.legacy-app > *:not(.details) { visibility: hidden !important; pointer-events: none !important; }
+.legacy-app .details { z-index: 20 !important; pointer-events: auto !important; visibility: visible !important; }
+.legacy-app .details.lite-editor-open { box-shadow: 0 18px 55px #1b30412d; }
+.legacy-app .lite-delete-task { width: 100%; margin-top: 8px; padding: 9px; border: 0; border-radius: 7px; color: #9b4d4f; background: #fff1f0; cursor: pointer; }
+.legacy-app .lite-delete-task:hover, .legacy-app .lite-delete-task:focus-visible { background: #ffe3e1; outline: 2px solid #df8a88; outline-offset: 2px; }
+
+@media (max-width: 780px) {
+  .lite-canvas { padding: 18px 16px 26px; overflow-y: auto; }
+  .lite-topbar { align-items: flex-start; flex-wrap: wrap; }
+  .lite-identity { width: 100%; justify-content: space-between; gap: 10px; }
+  .lite-actions { width: 100%; gap: 8px; }
+  .lite-capture-wrap { width: auto; min-width: 0; flex: 1; }
+  .lite-stage { min-height: 680px; }
+  .lite-axis-y { left: 49%; }
+  .lite-task { max-width: 46vw; }
+  .lite-task-title { font-size: 14px; }
+  .lite-notes { width: 74%; min-height: 145px; }
+}
+
+@media (max-width: 520px) {
+  .lite-date { font-size: 16px; }
+  .lite-switch { padding: 8px 12px; }
+  .lite-stage { min-height: 760px; }
+  .lite-axis-x { top: 43%; }
+  .lite-task { max-width: 62vw; }
+  .lite-task-dot { width: 13px; height: 13px; flex-basis: 13px; }
+  .lite-notes { bottom: 0; width: 100%; }
+  .lite-axis-y .axis-label { left: -32px; font-size: 12px; }
+}

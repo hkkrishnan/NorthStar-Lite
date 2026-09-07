@@ -1,1 +1,27 @@
-if(!self.define){let e,s={};const i=(i,n)=>(i=new URL(i+".js",n).href,s[i]||new Promise(s=>{if("document"in self){const e=document.createElement("script");e.src=i,e.onload=s,document.head.appendChild(e)}else e=i,importScripts(i),s()}).then(()=>{let e=s[i];if(!e)throw new Error(`Module ${i} didn’t register its module`);return e}));self.define=(n,r)=>{const o=e||("document"in self?document.currentScript.src:"")||location.href;if(s[o])return;let t={};const c=e=>i(e,o),f={module:{uri:o},exports:t,require:c};s[o]=Promise.all(n.map(e=>f[e]||c(e))).then(e=>(r(...e),t))}}define(["./workbox-2fbc6a65"],function(e){"use strict";self.addEventListener("message",e=>{e.data&&"SKIP_WAITING"===e.data.type&&self.skipWaiting()}),e.precacheAndRoute([{url:"manifest.webmanifest",revision:"2451d3fb236ba94b036974f2a8dc13fd"},{url:"index.html",revision:"5381718232d95c1a70ca6d159e0a6b73"},{url:"icons/northstar-512.svg",revision:"6022909ac6271facff876c8dcf67c597"},{url:"icons/northstar-192.svg",revision:"ce9db17bc33534e309b75cf2ae906ddc"},{url:"assets/index-BoKeMZeF.css",revision:null},{url:"assets/index-7D0HE4oj.js",revision:null},{url:"icons/northstar-192.svg",revision:"ce9db17bc33534e309b75cf2ae906ddc"},{url:"icons/northstar-512.svg",revision:"6022909ac6271facff876c8dcf67c597"},{url:"manifest.webmanifest",revision:"2451d3fb236ba94b036974f2a8dc13fd"}],{}),e.cleanupOutdatedCaches(),e.registerRoute(new e.NavigationRoute(e.createHandlerBoundToURL("index.html")))});
+const CACHE = 'northstar-lite-v4';
+const SHELL = [
+  './', './index.html', './lite-enhancements.js', './lite-enhancements.css',
+  './manifest.webmanifest', './assets/index-7D0HE4oj.js', './assets/index-BoKeMZeF.css',
+  './sw.js', './workbox-2fbc6a65.js', './icons/northstar-192.svg', './icons/northstar-512.svg'
+];
+
+self.addEventListener('install', (event) => {
+  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()));
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key)))).then(() => self.clients.claim()));
+});
+
+self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET') return;
+  if (event.request.mode === 'navigate') {
+    event.respondWith(fetch(event.request).catch(() => caches.match('./index.html')));
+    return;
+  }
+  event.respondWith(caches.match(event.request).then((cached) => cached || fetch(event.request).then((response) => {
+    const copy = response.clone();
+    caches.open(CACHE).then((cache) => cache.put(event.request, copy));
+    return response;
+  })));
+});
