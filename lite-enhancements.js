@@ -52,6 +52,7 @@
   };
 
   function buildShell(legacy) {
+    legacy.classList.add('legacy-app');
     const shell = create('main', { className: 'lite-canvas', 'aria-label': 'NorthStar Lite task canvas' });
     const topbar = create('header', { className: 'lite-topbar' });
     const date = create('time', { className: 'lite-date', dateTime: localDate(), textContent: new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) });
