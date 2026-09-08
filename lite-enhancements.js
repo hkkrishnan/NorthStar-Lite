@@ -51,6 +51,26 @@
     return element;
   };
 
+  const icon = (name) => {
+    const paths = {
+      plus: '<path d="M12 5v14M5 12h14"/>',
+      search: '<circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/>',
+      cloud: '<path d="M7 18.5h10.5a4 4 0 0 0 .7-7.94A6.5 6.5 0 0 0 5.7 9.2 4.7 4.7 0 0 0 7 18.5Z"/><path d="M12 10v7M9.4 12.6 12 10l2.6 2.6"/>',
+      more: '<circle cx="5" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.2" fill="currentColor" stroke="none"/>',
+      download: '<path d="M12 3v12M8 11l4 4 4-4M5 20h14"/>',
+      upload: '<path d="M12 16V4M8 8l4-4 4 4M5 20h14"/>',
+      history: '<path d="M4 12a8 8 0 1 0 2.35-5.65L4 8.7"/><path d="M4 4v4.7h4.7M12 8v4l2.8 1.7"/>',
+      settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.1 2.1-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.04 1.56v.1h-3v-.1a1.7 1.7 0 0 0-1.04-1.56 1.7 1.7 0 0 0-1.88.34l-.06.06-2.1-2.1.06-.06A1.7 1.7 0 0 0 7.04 15 1.7 1.7 0 0 0 5.5 14H5.4v-3h.1A1.7 1.7 0 0 0 7.04 10a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.1-2.1.06.06a1.7 1.7 0 0 0 1.88.34A1.7 1.7 0 0 0 11.72 4.8v-.1h3v.1a1.7 1.7 0 0 0 1.04 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.1 2.1-.06.06A1.7 1.7 0 0 0 19.4 10c.24.58.8.96 1.43 1H21v3h-.1c-.63.04-1.19.42-1.5 1Z"/>',
+      note: '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5M9 12h6M9 16h6"/>'
+    };
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'lite-icon');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.innerHTML = paths[name] || '';
+    return svg;
+  };
+
   function buildShell(legacy) {
     legacy.classList.add('legacy-app');
     const shell = create('main', { className: 'lite-canvas', 'aria-label': 'NorthStar Lite task canvas' });
@@ -59,25 +79,26 @@
     const switcher = create('div', { className: 'lite-switcher', role: 'group', 'aria-label': 'Workspace' });
     const captureWrap = create('div', { className: 'lite-capture-wrap' });
     const capture = create('input', { className: 'lite-capture', id: 'lite-capture', placeholder: 'Add a task…', 'aria-label': 'Add a task or search' });
-    const modeButton = create('button', { className: 'lite-mode-button', type: 'button', 'aria-label': 'Search tasks', textContent: '⌕' });
-    const save = create('button', { className: 'lite-save', type: 'button', 'aria-label': 'Save to Markdown', title: 'Save to Markdown', textContent: '☁' });
-    const menuButton = create('button', { className: 'lite-menu-button', type: 'button', 'aria-label': 'Open file menu', title: 'File menu', textContent: '•••' });
+    const modeButton = create('button', { className: 'lite-mode-button', type: 'button', 'aria-label': 'Search tasks' }, [icon('search')]);
+    const save = create('button', { className: 'lite-save', type: 'button', 'aria-label': 'Save to Markdown', title: 'Save to Markdown' }, [icon('cloud')]);
+    const menuButton = create('button', { className: 'lite-menu-button', type: 'button', 'aria-label': 'Open file menu', title: 'File menu', 'aria-expanded': 'false' }, [icon('more')]);
     const menu = create('div', { className: 'lite-menu', role: 'menu', hidden: true });
     const menuTitle = create('div', { className: 'lite-menu-title', textContent: 'File' });
     const menuItems = [
-      ['⇩', 'Download copy', () => clickLegacy('Download copy')],
-      ['⇧', 'Import Markdown', () => clickLegacy('Import replacement')],
-      ['↶', `Restore ${profileName().toLowerCase()}`, () => clickLegacy(`Recovery (${profileName().toLowerCase()})`)],
-      ['⚙', 'Settings', () => window.dispatchEvent(new CustomEvent('northstar:settings'))],
+      ['download', 'Download copy', () => clickLegacy('Download copy')],
+      ['upload', 'Import Markdown', () => clickLegacy('Import replacement')],
+      ['history', `Restore ${profileName().toLowerCase()}`, () => clickLegacy(`Recovery (${profileName().toLowerCase()})`)],
+      ['settings', 'Settings', () => window.dispatchEvent(new CustomEvent('northstar:settings'))],
     ];
     let restoreMenuLabel;
-    menu.append(menuTitle, ...menuItems.map(([icon, label, action]) => {
+    const makeMenuItem = ([iconName, label, action]) => {
       const labelNode = create('span', { textContent: label });
-      const item = create('button', { className: 'lite-menu-item', role: 'menuitem' }, [create('span', { className: 'lite-menu-icon', textContent: icon }), labelNode]);
+      const item = create('button', { className: 'lite-menu-item', role: 'menuitem' }, [create('span', { className: 'lite-menu-icon' }, [icon(iconName)]), labelNode]);
       if (label.startsWith('Restore ')) restoreMenuLabel = labelNode;
-      item.addEventListener('click', () => { action(); menu.hidden = true; });
+      item.addEventListener('click', () => { action(); menu.hidden = true; menuButton.setAttribute('aria-expanded', 'false'); });
       return item;
-    }));
+    };
+    menu.append(menuTitle, makeMenuItem(menuItems[0]), makeMenuItem(menuItems[1]), create('div', { className: 'lite-menu-separator' }), create('div', { className: 'lite-menu-section', textContent: 'Recovery' }), makeMenuItem(menuItems[2]), create('div', { className: 'lite-menu-separator' }), makeMenuItem(menuItems[3]));
 
     qsa('.profile-switcher button', legacy).forEach((legacyButton) => {
       const name = legacyButton.textContent.replace(/Unsaved\s*changes|Browser\s*only|Connected\s*file|Conflict|Local\s*changes/gi, '').trim().split(/\s+/)[0];
@@ -85,7 +106,7 @@
       button.addEventListener('click', () => legacyButton.click());
       switcher.append(button);
     });
-    captureWrap.append(capture, modeButton);
+    captureWrap.append(create('span', { className: 'lite-capture-icon', 'aria-hidden': 'true' }, [icon('plus')]), capture, modeButton);
     topbar.append(create('div', { className: 'lite-identity' }, [date, switcher]), create('div', { className: 'lite-actions' }, [captureWrap, save, menuButton, menu]));
 
     const stage = create('section', { className: 'lite-stage', 'aria-label': 'Priority canvas' });
@@ -93,15 +114,22 @@
     const horizontal = create('div', { className: 'lite-axis lite-axis-x', 'aria-hidden': 'true' }, [create('span', { className: 'axis-label', textContent: 'Not Urgent' }), create('div', { className: 'timeline' }, ['Sep 5', 'Sep 6', 'Sep 8', 'Sep 9'].map((label) => create('span', { textContent: label }))), create('span', { className: 'axis-label', textContent: 'Urgent' })]);
     const taskLayer = create('div', { className: 'lite-task-layer', role: 'list', 'aria-label': 'Active tasks' });
     const notes = create('section', { className: 'lite-notes', 'aria-label': `${profileName()} notes` });
-    const notesHeading = create('div', { className: 'lite-notes-heading' }, [create('span', { className: 'notes-glyph', textContent: '▧' }), create('strong', { textContent: 'Notes' })]);
-    const notesInput = create('textarea', { className: 'lite-notes-input', id: 'lite-notes-input', placeholder: 'Jot down ideas, thoughts, or reminders…', 'aria-label': 'Notes', spellcheck: 'true' });
-    notes.append(notesHeading, notesInput);
+    const notesHeading = create('div', { className: 'lite-notes-heading' }, [create('span', { className: 'notes-glyph', 'aria-hidden': 'true' }, [icon('note')]), create('strong', { textContent: 'Notes' })]);
+    const notesHelper = create('p', { className: 'lite-notes-helper', textContent: 'Jot down ideas, thoughts, or reminders...' });
+    const notesInput = create('textarea', { className: 'lite-notes-input', id: 'lite-notes-input', placeholder: '', 'aria-label': 'Notes', spellcheck: 'true' });
+    notes.append(notesHeading, notesHelper, notesInput);
     stage.append(vertical, horizontal, taskLayer, notes);
     shell.append(topbar, stage);
+    const settings = create('section', { className: 'lite-settings', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'lite-settings-title', hidden: true });
+    const settingsClose = create('button', { className: 'lite-settings-close', type: 'button', 'aria-label': 'Close settings', textContent: '×' });
+    const resetLayout = create('button', { className: 'lite-reset-layout', type: 'button', textContent: 'Reset task positions' });
+    settings.append(create('div', { className: 'lite-settings-card' }, [create('div', { className: 'lite-settings-header' }, [create('h2', { id: 'lite-settings-title', textContent: 'Settings' }), settingsClose]), create('p', { textContent: 'Notes and task positions stay in this browser and are kept separately for each workspace.' }), resetLayout]));
+    shell.append(settings);
     root.prepend(shell);
 
     let searchMode = false;
     let lastProfile = profileName();
+    let draggedTask = null;
     const loadNotes = () => { notesInput.value = localStorage.getItem(profileKey()) || ''; };
     notesInput.addEventListener('input', () => localStorage.setItem(profileKey(), notesInput.value));
     const setSearchMode = (enabled) => {
@@ -109,7 +137,7 @@
       shell.classList.toggle('searching', enabled);
       capture.placeholder = enabled ? 'Search tasks…' : 'Add a task…';
       capture.value = '';
-      modeButton.textContent = enabled ? '×' : '⌕';
+      modeButton.replaceChildren(enabled ? create('span', { textContent: '×', 'aria-hidden': 'true' }) : icon('search'));
       modeButton.setAttribute('aria-label', enabled ? 'Exit search' : 'Search tasks');
       render();
       if (enabled) capture.focus();
@@ -128,15 +156,39 @@
       }
     });
     save.addEventListener('click', () => clickLegacy('Save to Markdown'));
-    menuButton.addEventListener('click', (event) => { event.stopPropagation(); menu.hidden = !menu.hidden; });
-    document.addEventListener('click', (event) => { if (!menu.hidden && !menu.contains(event.target) && event.target !== menuButton) menu.hidden = true; });
-    document.addEventListener('keydown', (event) => { if (event.key === 'Escape') { menu.hidden = true; if (searchMode) setSearchMode(false); } });
+    const closeMenu = () => { menu.hidden = true; menuButton.setAttribute('aria-expanded', 'false'); };
+    const closeSettings = () => { settings.hidden = true; };
+    menuButton.addEventListener('click', (event) => { event.stopPropagation(); menu.hidden = !menu.hidden; menuButton.setAttribute('aria-expanded', String(!menu.hidden)); });
+    document.addEventListener('click', (event) => { if (!menu.hidden && !menu.contains(event.target) && event.target !== menuButton) closeMenu(); });
+    document.addEventListener('keydown', (event) => { if (event.key === 'Escape') { closeMenu(); closeSettings(); if (searchMode) setSearchMode(false); } });
+    window.addEventListener('northstar:settings', () => { settings.hidden = false; settingsClose.focus(); });
+    settingsClose.addEventListener('click', closeSettings);
+    resetLayout.addEventListener('click', () => {
+      if (!window.confirm(`Reset saved task positions for ${profileName()}?`)) return;
+      const prefix = `northstar-lite-position-${profileName()}-`;
+      Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index)).filter((key) => key?.startsWith(prefix)).forEach((key) => localStorage.removeItem(key));
+      closeSettings();
+      render();
+    });
+
+    stage.addEventListener('dragover', (event) => { if (draggedTask) event.preventDefault(); });
+    stage.addEventListener('drop', (event) => {
+      if (!draggedTask) return;
+      event.preventDefault();
+      const bounds = stage.getBoundingClientRect();
+      const x = ((event.clientX - bounds.left) / bounds.width) * 100;
+      const y = ((event.clientY - bounds.top) / bounds.height) * 100;
+      localStorage.setItem(`northstar-lite-position-${draggedTask.profile}-${draggedTask.title}`, JSON.stringify({ x, y }));
+      draggedTask = null;
+      render();
+    });
 
     function render() {
       const current = profileName();
       if (current !== lastProfile) { lastProfile = current; loadNotes(); capture.value = ''; }
       date.textContent = new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
       date.dateTime = localDate();
+      notes.setAttribute('aria-label', `${current} notes`);
       if (restoreMenuLabel) restoreMenuLabel.textContent = `Restore ${current.toLowerCase()}`;
       qsa('.lite-switch', switcher).forEach((button) => { const active = button.dataset.workspace === current.toLowerCase(); button.classList.toggle('active', active); button.setAttribute('aria-pressed', String(active)); });
       const query = searchMode ? capture.value.trim().toLowerCase() : '';
@@ -179,22 +231,28 @@
         const label = create('button', { className: 'lite-task-label', type: 'button', 'aria-label': `Edit ${title}` }, [create('span', { className: 'lite-task-title', textContent: title })]);
         if (dueView.text) label.append(create('span', { className: `lite-task-due ${dueView.className}`, textContent: dueView.text }));
         task.append(dot, label);
-        const position = JSON.parse(localStorage.getItem(`northstar-lite-position-${current}-${title}`) || 'null') || { x: quadrant === 'schedule' || quadrant === 'later' ? 18 + (index % 3) * 14 : 68 + (index % 3) * 9, y: quadrant === 'schedule' || quadrant === 'do-first' ? 18 + (index % 4) * 12 : 59 + (index % 4) * 10 };
+        const savedPosition = JSON.parse(localStorage.getItem(`northstar-lite-position-${current}-${title}`) || 'null');
+        const defaults = quadrant === 'schedule'
+          ? { x: 12 + (index % 3) * 14, y: 18 + (index % 4) * 12 }
+          : quadrant === 'do-first'
+            ? { x: 68 + (index % 3) * 9, y: 18 + (index % 4) * 12 }
+            : quadrant === 'later'
+              ? { x: 52 + (index % 3) * 8, y: 68 + (index % 3) * 9 }
+              : { x: 68 + (index % 3) * 9, y: 59 + (index % 4) * 10 };
+        const position = savedPosition && !(quadrant === 'later' && savedPosition.x < 50 && savedPosition.y > 48) ? savedPosition : defaults;
         task.style.setProperty('--x', `${Math.min(92, Math.max(6, position.x))}%`);
         task.style.setProperty('--y', `${Math.min(88, Math.max(9, position.y))}%`);
         const openEditor = () => { main?.click(); setTimeout(() => { const details = qs('.details', legacy); details?.classList.add('lite-editor-open'); }, 40); };
         label.addEventListener('click', openEditor);
         task.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openEditor(); } });
-        task.addEventListener('dragstart', () => task.classList.add('is-dragging'));
-        task.addEventListener('dragend', () => task.classList.remove('is-dragging'));
-        task.addEventListener('dragover', (event) => event.preventDefault());
-        task.addEventListener('drop', (event) => { event.preventDefault(); const bounds = stage.getBoundingClientRect(); const x = ((event.clientX - bounds.left) / bounds.width) * 100; const y = ((event.clientY - bounds.top) / bounds.height) * 100; localStorage.setItem(`northstar-lite-position-${current}-${title}`, JSON.stringify({ x, y })); render(); });
+        task.addEventListener('dragstart', (event) => { draggedTask = { profile: current, title }; event.dataTransfer?.setData('text/plain', title); task.classList.add('is-dragging'); });
+        task.addEventListener('dragend', () => { draggedTask = null; task.classList.remove('is-dragging'); });
         taskLayer.append(task);
       });
-      loadNotes();
     }
     const observer = new MutationObserver(() => { render(); });
     observer.observe(legacy, { subtree: true, childList: true, characterData: true, attributes: true });
+    loadNotes();
     render();
   }
 
