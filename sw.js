@@ -1,7 +1,7 @@
-const CACHE = 'northstar-lite-v6';
+const CACHE = 'northstar-lite-v7';
 const SHELL = [
-  './', './index.html', './lite-enhancements.js', './lite-enhancements.css',
-  './manifest.webmanifest', './assets/index-7D0HE4oj.js', './assets/index-BoKeMZeF.css',
+  './', './index.html', './app.js', './lite-enhancements.css',
+  './manifest.webmanifest',
   './sw.js', './workbox-2fbc6a65.js', './icons/northstar-192.svg', './icons/northstar-512.svg'
 ];
 
