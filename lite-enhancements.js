@@ -98,7 +98,8 @@
       item.addEventListener('click', () => { action(); menu.hidden = true; menuButton.setAttribute('aria-expanded', 'false'); });
       return item;
     };
-    menu.append(menuTitle, makeMenuItem(menuItems[0]), makeMenuItem(menuItems[1]), create('div', { className: 'lite-menu-separator' }), create('div', { className: 'lite-menu-section', textContent: 'Recovery' }), makeMenuItem(menuItems[2]), create('div', { className: 'lite-menu-separator' }), makeMenuItem(menuItems[3]));
+    const undoItem = create('button', { className: 'lite-menu-undo', type: 'button', role: 'menuitem', hidden: true });
+    menu.append(menuTitle, undoItem, makeMenuItem(menuItems[0]), makeMenuItem(menuItems[1]), create('div', { className: 'lite-menu-separator' }), create('div', { className: 'lite-menu-section', textContent: 'Recovery' }), makeMenuItem(menuItems[2]), create('div', { className: 'lite-menu-separator' }), makeMenuItem(menuItems[3]));
 
     qsa('.profile-switcher button', legacy).forEach((legacyButton) => {
       const name = legacyButton.textContent.replace(/Unsaved\s*changes|Browser\s*only|Connected\s*file|Conflict|Local\s*changes/gi, '').trim().split(/\s+/)[0];
@@ -130,8 +131,73 @@
     let searchMode = false;
     let lastProfile = profileName();
     let draggedTask = null;
+    let selectedTask = null;
+    let undoEntry = null;
+    const editorTitle = create('input', { className: 'lite-editor-title', type: 'text', 'aria-label': 'Task title' });
+    const editorDue = create('input', { className: 'lite-editor-field', type: 'date', 'aria-label': 'Due date' });
+    const editorImportance = create('select', { className: 'lite-editor-field', 'aria-label': 'Importance' }, [create('option', { value: 'important', textContent: 'Important' }), create('option', { value: 'less-important', textContent: 'Not important' })]);
+    const editorNotes = create('textarea', { className: 'lite-editor-notes', 'aria-label': 'Task notes', placeholder: 'Add task notes...' });
+    const saveTask = create('button', { className: 'lite-editor-save', type: 'button', textContent: 'Save changes' });
+    const deleteTask = create('button', { className: 'lite-editor-delete', type: 'button', textContent: 'Delete task' });
+    const notesDefault = () => notes.replaceChildren(notesHeading, notesHelper, notesInput);
     const loadNotes = () => { notesInput.value = localStorage.getItem(profileKey()) || ''; };
     notesInput.addEventListener('input', () => localStorage.setItem(profileKey(), notesInput.value));
+    const updateStoredTask = (title, update, after) => {
+      const request = indexedDB.open('northstar');
+      request.onsuccess = () => {
+        const db = request.result;
+        const transaction = db.transaction('liteProfiles', 'readwrite');
+        const store = transaction.objectStore('liteProfiles');
+        const profileId = profileName().toLowerCase();
+        const getRequest = store.get(profileId);
+        getRequest.onsuccess = () => {
+          const record = getRequest.result;
+          if (!record?.profile) return;
+          const now = new Date().toISOString();
+          const tasks = (record.profile.tasks || []).map((task) => task.title === title ? update(task, now) : task);
+          store.put({ ...record, profile: { ...record.profile, tasks }, dirty: true, lastLocalEdit: now });
+        };
+        transaction.oncomplete = () => after?.();
+      };
+    };
+    const hideEditor = () => { selectedTask = null; notes.classList.remove('is-editing'); notes.setAttribute('aria-label', `${profileName()} notes`); notesDefault(); loadNotes(); };
+    const showEditor = ({ title, due, quadrant }) => {
+      selectedTask = { title, due, quadrant };
+      notes.classList.add('is-editing');
+      notes.setAttribute('aria-label', `Edit ${title}`);
+      editorTitle.value = title;
+      editorDue.value = due || '';
+      editorImportance.value = quadrant === 'schedule' || quadrant === 'do-first' ? 'important' : 'less-important';
+      editorNotes.value = '';
+      notes.replaceChildren(create('div', { className: 'lite-editor-kicker', textContent: 'Task' }), editorTitle, create('label', { className: 'lite-editor-label', textContent: 'Due date' }, [editorDue]), create('label', { className: 'lite-editor-label', textContent: 'Priority' }, [editorImportance]), create('label', { className: 'lite-editor-label', textContent: 'Notes' }, [editorNotes]), create('div', { className: 'lite-editor-actions' }, [saveTask, deleteTask]));
+      const request = indexedDB.open('northstar');
+      request.onsuccess = () => {
+        const transaction = request.result.transaction('liteProfiles', 'readonly');
+        const getRequest = transaction.objectStore('liteProfiles').get(profileName().toLowerCase());
+        getRequest.onsuccess = () => {
+          const task = getRequest.result?.profile?.tasks?.find((item) => item.title === title);
+          if (!task || selectedTask?.title !== title) return;
+          editorDue.value = task.dueDate || '';
+          editorImportance.value = task.importance || editorImportance.value;
+          editorNotes.value = task.notes || '';
+        };
+      };
+      editorTitle.focus();
+    };
+    saveTask.addEventListener('click', () => {
+      if (!selectedTask || !editorTitle.value.trim()) return;
+      const originalTitle = selectedTask.title;
+      updateStoredTask(originalTitle, (task, now) => ({ ...task, title: editorTitle.value.trim(), dueDate: editorDue.value || null, importance: editorImportance.value, notes: editorNotes.value, updatedAt: now }), () => window.location.reload());
+    });
+    deleteTask.addEventListener('click', () => {
+      if (!selectedTask || !window.confirm(`Delete “${selectedTask.title}”? It will remain in Markdown history.`)) return;
+      updateStoredTask(selectedTask.title, (task, now) => ({ ...task, status: 'cancelled', deletedAt: now, updatedAt: now }), () => window.location.reload());
+    });
+    undoItem.addEventListener('click', () => {
+      if (!undoEntry) return;
+      const { title } = undoEntry;
+      updateStoredTask(title, (task, now) => ({ ...task, status: 'open', completedAt: null, updatedAt: now }), () => window.location.reload());
+    });
     const setSearchMode = (enabled) => {
       searchMode = enabled;
       shell.classList.toggle('searching', enabled);
@@ -160,7 +226,7 @@
     const closeSettings = () => { settings.hidden = true; };
     menuButton.addEventListener('click', (event) => { event.stopPropagation(); menu.hidden = !menu.hidden; menuButton.setAttribute('aria-expanded', String(!menu.hidden)); });
     document.addEventListener('click', (event) => { if (!menu.hidden && !menu.contains(event.target) && event.target !== menuButton) closeMenu(); });
-    document.addEventListener('keydown', (event) => { if (event.key === 'Escape') { closeMenu(); closeSettings(); if (searchMode) setSearchMode(false); } });
+    document.addEventListener('keydown', (event) => { if (event.key === 'Escape') { closeMenu(); closeSettings(); if (searchMode) setSearchMode(false); if (selectedTask) hideEditor(); } });
     window.addEventListener('northstar:settings', () => { settings.hidden = false; settingsClose.focus(); });
     settingsClose.addEventListener('click', closeSettings);
     resetLayout.addEventListener('click', () => {
@@ -182,6 +248,7 @@
       draggedTask = null;
       render();
     });
+    stage.addEventListener('click', (event) => { if (selectedTask && (event.target === stage || event.target === taskLayer)) hideEditor(); });
 
     function render() {
       const current = profileName();
@@ -193,31 +260,8 @@
       qsa('.lite-switch', switcher).forEach((button) => { const active = button.dataset.workspace === current.toLowerCase(); button.classList.toggle('active', active); button.setAttribute('aria-pressed', String(active)); });
       const query = searchMode ? capture.value.trim().toLowerCase() : '';
       taskLayer.replaceChildren();
-      const details = qs('.details', legacy);
-      if (details && !qs('.lite-delete-task', details)) {
-        const deleteButton = create('button', { className: 'lite-delete-task', type: 'button', textContent: 'Delete task' });
-        deleteButton.addEventListener('click', async () => {
-          const titleInput = qs('input', details);
-          const title = titleInput?.value?.trim();
-          if (!title || !window.confirm(`Delete “${title}”?`)) return;
-          const request = indexedDB.open('northstar');
-          request.onsuccess = () => {
-            const db = request.result;
-            const transaction = db.transaction('liteProfiles', 'readwrite');
-            const store = transaction.objectStore('liteProfiles');
-            const profileId = profileName().toLowerCase();
-            const getRequest = store.get(profileId);
-            getRequest.onsuccess = () => {
-              const record = getRequest.result;
-              if (!record?.profile) return;
-              const nextProfile = { ...record.profile, tasks: (record.profile.tasks || []).filter((task) => task.title !== title) };
-              store.put({ ...record, profile: nextProfile, dirty: true, lastLocalEdit: new Date().toISOString() });
-            };
-            transaction.oncomplete = () => window.location.reload();
-          };
-        });
-        details.append(deleteButton);
-      }
+      undoItem.hidden = !undoEntry;
+      if (undoEntry) undoItem.textContent = `Undo completion: ${undoEntry.title}`;
       const cards = qsa('.task-card', legacy);
       cards.forEach((card, index) => {
         const main = qs('.card-main', card);
@@ -227,7 +271,7 @@
         const quadrant = card.closest('[data-quadrant]')?.dataset.quadrant || 'later';
         const dueView = humanDate(due);
         const task = create('article', { className: `lite-task task-${quadrant}`, role: 'listitem', draggable: 'true', tabindex: '0', dataset: { title, due, profile: current } });
-        const dot = create('span', { className: 'lite-task-dot', 'aria-hidden': 'true' });
+        const dot = create('button', { className: 'lite-task-dot', type: 'button', 'aria-label': `Mark ${title} complete`, title: `Mark ${title} complete` });
         const label = create('button', { className: 'lite-task-label', type: 'button', 'aria-label': `Edit ${title}` }, [create('span', { className: 'lite-task-title', textContent: title })]);
         if (dueView.text) label.append(create('span', { className: `lite-task-due ${dueView.className}`, textContent: dueView.text }));
         task.append(dot, label);
@@ -242,8 +286,16 @@
         const position = savedPosition && !(quadrant === 'later' && savedPosition.x < 50 && savedPosition.y > 48) ? savedPosition : defaults;
         task.style.setProperty('--x', `${Math.min(92, Math.max(6, position.x))}%`);
         task.style.setProperty('--y', `${Math.min(88, Math.max(9, position.y))}%`);
-        const openEditor = () => { main?.click(); setTimeout(() => { const details = qs('.details', legacy); details?.classList.add('lite-editor-open'); }, 40); };
-        label.addEventListener('click', openEditor);
+        const openEditor = () => showEditor({ title, due, quadrant });
+        label.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); openEditor(); });
+        dot.addEventListener('click', (event) => {
+          event.stopPropagation();
+          const complete = qs('.complete', card);
+          if (!complete) return;
+          undoEntry = { title, profile: current };
+          complete.click();
+          setTimeout(render, 80);
+        });
         task.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openEditor(); } });
         task.addEventListener('dragstart', (event) => { draggedTask = { profile: current, title }; event.dataTransfer?.setData('text/plain', title); task.classList.add('is-dragging'); });
         task.addEventListener('dragend', () => { draggedTask = null; task.classList.remove('is-dragging'); });
