@@ -69,3 +69,11 @@ assert.equal(rich.tasks[0].urgency, "urgent");
 const richRoundTrip = parseMarkdown(serializeMarkdown(rich), "personal.md");
 assert.equal(richRoundTrip.tasks[0].extra.customField, "keep me");
 assert.equal(richRoundTrip.frontmatter.owner, "me");
+
+const noCanvas = parseMarkdown(serializeMarkdown({
+  id: "personal", title: "Personal", notes: "", tasks: [{
+    id: "unplaced", title: "Unplaced", status: "open", importance: "less-important",
+    dueDate: null, notes: "", createdAt: "2026-09-09T00:00:00.000Z", updatedAt: "2026-09-09T00:00:00.000Z", canvas: null,
+  }],
+}), "personal.md");
+assert.equal(noCanvas.tasks[0].canvas, null);

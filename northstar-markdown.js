@@ -115,8 +115,9 @@
       return [
         `- id: ${quote(t.id)}`, line("title", t.title), line("status", t.status), line("importance", t.importance), line("urgency", urgencyFor(t.dueDate)),
         line("dueDate", t.dueDate), line("notes", t.notes), line("project", t.project), line("tags", t.tags), line("delegated", t.delegated), line("recurrence", t.recurrence),
-        line("createdAt", t.createdAt), line("updatedAt", t.updatedAt), line("completedAt", t.completedAt), line("deletedAt", t.deletedAt), "  canvas:",
-        `    x: ${Math.round(t.canvas?.x ?? 50)}`, `    y: ${Math.round(t.canvas?.y ?? 50)}`, ...extras.map(([key, value]) => line(key, value)),
+        line("createdAt", t.createdAt), line("updatedAt", t.updatedAt), line("completedAt", t.completedAt), line("deletedAt", t.deletedAt),
+        ...(t.canvas ? ["  canvas:", `    x: ${Math.round(t.canvas.x)}`, `    y: ${Math.round(t.canvas.y)}`] : []),
+        ...extras.map(([key, value]) => line(key, value)),
       ].join("\n");
     }).join("\n");
     const meta = Object.entries(w.frontmatter || {}).filter(([key]) => !["type", "version", "id", "title"].includes(key) && /^[A-Za-z][\w-]*$/.test(key));
