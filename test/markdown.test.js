@@ -1,0 +1,71 @@
+const assert = require("node:assert/strict");
+const { parseMarkdown, serializeMarkdown } = require(
+  "../northstar-markdown.js",
+);
+const canonical =
+  `---\ntype: northstar-profile\nversion: 1\nid: personal\ntitle: Personal\n---\n\n# Personal\n\n## Tasks\n\n\`\`\`yaml\n- id: one\n  title: "Call: \\"Maya\\" #1"\n  status: open\n  importance: important\n  urgency: urgent\n  dueDate: 2026-09-08\n  notes: |\n    First line\n    Second line\n  canvas:\n    x: 70\n    y: 25\n- id: done\n  title: Finished\n  status: completed\n  completedAt: 2026-09-07T12:00:00.000Z\n\`\`\`\n\n## Notes\n\n\`\`\`text\nPersonal note\nnext line\n\`\`\``;
+const personal = parseMarkdown(canonical, "Personal.md");
+assert.equal(personal.id, "personal");
+assert.equal(personal.tasks.length, 2);
+assert.equal(personal.tasks[0].title, 'Call: "Maya" #1');
+assert.equal(personal.tasks[0].notes, "First line\nSecond line");
+assert.equal(personal.tasks[1].status, "completed");
+assert.equal(personal.notes, "Personal note\nnext line");
+const malformed = parseMarkdown(canonical.replace(/^  /gm, ""), "Personal.md");
+assert.equal(malformed.tasks.length, 2);
+assert.equal(malformed.tasks[0].title, 'Call: "Maya" #1');
+const roundTrip = parseMarkdown(serializeMarkdown(personal), "Personal.md");
+assert.equal(roundTrip.tasks.length, 2);
+assert.equal(roundTrip.tasks[0].notes, "First line\nSecond line");
+assert.equal(roundTrip.tasks[1].status, "completed");
+const work = parseMarkdown(
+  serializeMarkdown({
+    ...personal,
+    id: "work",
+    title: "Work",
+    notes: "work only",
+  }),
+  "Work.md",
+);
+assert.equal(work.id, "work");
+assert.equal(personal.notes, "Personal note\nnext line");
+assert.equal(work.notes, "work only");
+console.log("markdown tests passed");
+
+const rich = parseMarkdown(`---
+type: northstar-profile
+id: personal
+title: Personal
+owner: "me"
+---
+
+## Tasks
+
+\`\`\`yaml
+- id: inbox
+  title: "Inbox #1: <safe>"
+  status: inbox
+  importance: important
+  dueDate: 2026-09-09
+  tags: ["home", "today"]
+  delegated: true
+  customField: "keep me"
+- id: waiting
+  title: Waiting item
+  status: waiting
+  dueDate: 2026-10-10
+\`\`\`
+
+## Notes
+
+\`\`\`text
+One\nTwo
+\`\`\``, "personal.md");
+assert.equal(rich.tasks[0].status, "inbox");
+assert.equal(rich.tasks[1].status, "waiting");
+assert.deepEqual(rich.tasks[0].tags, ["home", "today"]);
+assert.equal(rich.tasks[0].extra.customField, "keep me");
+assert.equal(rich.tasks[0].urgency, "urgent");
+const richRoundTrip = parseMarkdown(serializeMarkdown(rich), "personal.md");
+assert.equal(richRoundTrip.tasks[0].extra.customField, "keep me");
+assert.equal(richRoundTrip.frontmatter.owner, "me");

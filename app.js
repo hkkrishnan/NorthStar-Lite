@@ -1,27 +1,609 @@
 (() => {
-  'use strict';
-  const root = document.getElementById('root');
-  const state = { workspaces: new Map(), active: null, search: false, selected: null, undo: null };
-  const $ = (s, e = document) => e.querySelector(s);
-  const el = (tag, attrs = {}, children = []) => { const n = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) { if (k === 'className') n.className = v; else if (k === 'text') n.textContent = v; else if (k.startsWith('on')) n.addEventListener(k.slice(2), v); else n.setAttribute(k, v); } children.forEach(c => n.append(c)); return n; };
-  const today = () => new Date().toISOString().slice(0, 10);
-  const id = () => crypto.randomUUID();
-  const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
-  const scalar = v => { v = v.trim(); if (v === 'true') return true; if (v === 'false') return false; if (v === 'null') return null; if (/^\d+(\.\d+)?$/.test(v)) return Number(v); return v.replace(/^['"]|['"]$/g, ''); };
-  const parseList = text => { const items = []; let item; let nested; for (const raw of text.split('\n')) { const line = raw.replace(/\t/g, '  '); if (/^\s*-\s+/.test(line)) { item = {}; items.push(item); nested = null; const p = line.replace(/^\s*-\s+/, '').split(/:\s*/, 2); if (p.length === 2) item[p[0]] = scalar(p[1]); } else if (item && /^\s{2,}([\w-]+):\s*$/.test(line)) { nested = RegExp.$1; item[nested] = {}; } else if (item && /^\s{2,}([\w-]+):\s*(.*)$/.test(line)) { const [, k, v] = line.match(/^\s{2,}([\w-]+):\s*(.*)$/); item[k] = scalar(v); nested = null; } else if (item && nested && /^\s{4,}([\w-]+):\s*(.*)$/.test(line)) { const [, k, v] = line.match(/^\s{4,}([\w-]+):\s*(.*)$/); item[nested][k] = scalar(v); } } return items; };
-  const fenced = (name, text) => (new RegExp('## ' + name + '\\s*\\n\\s*```(?:yaml|text)?\\n([\\s\\S]*?)\\n```', 'i').exec(text) || [,''])[1];
-  const parseFile = (text, fileName = 'Markdown') => { const front = /^---\n([\s\S]*?)\n---/.exec(text)?.[1] || ''; const meta = Object.fromEntries(front.split('\n').map(l => l.split(/:\s*/, 2)).filter(x => x.length === 2).map(([k,v]) => [k, scalar(v)])); const title = meta.title || fileName.replace(/\.(md|markdown)$/i, '') || 'Workspace'; const tasks = parseList(fenced('Tasks', text)).map(t => ({ id: t.id || id(), title: t.title || 'Untitled task', status: t.status || 'open', importance: t.importance || 'less-important', dueDate: t.dueDate || t.due || null, notes: t.notes || '', createdAt: t.createdAt || new Date().toISOString(), updatedAt: t.updatedAt || new Date().toISOString(), completedAt: t.completedAt || null, deletedAt: t.deletedAt || null, canvas: t.canvas || null })); return { id: meta.id || title.toLowerCase().replace(/\W+/g, '-'), title, tasks, notes: fenced('Notes', text), fileName, handle: null, dirty: false, source: text }; };
-  const yaml = (value, indent = '') => Object.entries(value).filter(([,v]) => v !== undefined && v !== null && v !== '').map(([k,v]) => typeof v === 'object' && !Array.isArray(v) ? `${indent}${k}:\n${yaml(v, indent + '  ')}` : `${indent}${k}: ${typeof v === 'string' ? v.replace(/\n/g, ' ') : v}`).join('\n');
-  const serialize = w => ['---', 'type: northstar-profile', 'version: 1', `id: ${w.id}`, `title: ${w.title}`, '---', '', `# ${w.title}`, '', '## Projects', '', '```yaml', '[]', '```', '', '## Tasks', '', '```yaml', w.tasks.map(t => `- ${yaml({ id:t.id, title:t.title, status:t.status, importance:t.importance, dueDate:t.dueDate, notes:t.notes, createdAt:t.createdAt, updatedAt:t.updatedAt, completedAt:t.completedAt, deletedAt:t.deletedAt, canvas:t.canvas })}`).join('\n'), '```', '', '## Notes', '', '```text', w.notes || '', '```', ''].join('\n');
-  const active = () => state.workspaces.get(state.active);
-  const due = d => { if (!d) return ''; const n = new Date(`${d}T12:00:00`), diff = Math.round((n - new Date(`${today()}T12:00:00`)) / 86400000); return diff < 0 ? 'Overdue' : diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow' : n.toLocaleDateString(undefined,{month:'short',day:'numeric'}); };
-  const quadrant = t => t.importance === 'important' ? (t.dueDate && t.dueDate <= today() ? 'do-first' : 'schedule') : 'reconsider';
-  const save = async () => { const w = active(); if (!w) return; const text = serialize(w); if (w.handle) { const writable = await w.handle.createWritable(); await writable.write(text); await writable.close(); w.source = text; w.dirty = false; render(); return; } const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], {type:'text/markdown;charset=utf-8'})); a.download = w.fileName || `${w.id}.md`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 0); w.dirty = false; render(); };
-  const openFiles = async direct => { try { let files = []; if (direct && window.showOpenFilePicker) { const [handle] = await window.showOpenFilePicker({types:[{description:'Markdown',accept:{'text/markdown':['.md','.markdown']}}]}); const file = await handle.getFile(); files = [[file,handle]]; } else { const input = el('input',{type:'file',accept:'.md,.markdown,text/markdown',multiple:'multiple',style:'position:fixed;left:-9999px;top:auto;width:1px;height:1px;opacity:0'}); input.addEventListener('change', async () => { try { for (const file of input.files || []) addWorkspace(parseFile(await file.text(), file.name)); } finally { input.remove(); } }, {once:true}); document.body.append(input); input.click(); return; } for (const [file,handle] of files) { const w = parseFile(await file.text(),file.name); w.handle = handle; addWorkspace(w); } } catch (e) { if (e.name !== 'AbortError') alert(`Could not open Markdown: ${e.message}`); } };
-  const addWorkspace = w => { state.workspaces.set(w.id,w); state.active = w.id; render(); };
-  const markComplete = task => { const w = active(); task.status = 'completed'; task.completedAt = new Date().toISOString(); task.updatedAt = task.completedAt; w.dirty = true; state.undo = task.id; render(); };
-  const render = () => { root.replaceChildren(); if (!active()) return renderWelcome(); const w = active(); const canvas = el('main',{className:'lite-canvas'}); const header = el('header',{className:'lite-topbar'}); const switches = el('div',{className:'lite-switcher',role:'group','aria-label':'Workspace'}); [...state.workspaces.values()].forEach(ws => switches.append(el('button',{className:`lite-switch ${ws.id===w.id?'active':''}`,text:ws.title,onClick:()=>{state.active=ws.id;state.selected=null;render();}}))); const capture = el('input',{className:'lite-capture',placeholder:state.search?'Search tasks…':'Add a task…','aria-label':state.search?'Search tasks':'Add a task'}); capture.oninput=render; capture.onkeydown=e=>{if(e.key==='Escape'){state.search=false;render();} if(e.key==='Enter'&&!state.search&&capture.value.trim()){const t={id:id(),title:capture.value.trim(),status:'open',importance:'less-important',dueDate:null,notes:'',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};w.tasks.push(t);w.dirty=true;render();}}; const menu=el('div',{className:'lite-menu',hidden:'hidden'}); const menuButton=el('button',{className:'lite-menu-button','aria-label':'Open file menu',text:'•••',onClick:()=>{menu.hidden=!menu.hidden;}}); if(state.undo){menu.append(el('button',{className:'lite-menu-undo',text:'Undo completion',onClick:()=>{const t=w.tasks.find(x=>x.id===state.undo);if(t){t.status='open';t.completedAt=null;w.dirty=true;}state.undo=null;render();}}));} menu.append(el('button',{className:'lite-menu-item',text:'Open Markdown',onClick:()=>openFiles(true)}),el('button',{className:'lite-menu-item',text:'Import Markdown',onClick:()=>openFiles(false)}),el('button',{className:'lite-menu-item',text:'Download copy',onClick:save})); header.append(el('div',{className:'lite-identity'},[el('time',{className:'lite-date',text:new Date().toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric',year:'numeric'})}),switches]),el('div',{className:'lite-actions'},[el('span',{className:'lite-capture-wrap'},[el('span',{className:'lite-capture-icon',text:'+'}),capture,el('button',{className:'lite-mode-button',text:state.search?'×':'⌕',onClick:()=>{state.search=!state.search;render();}})]),el('button',{className:'lite-save','aria-label':'Save to Markdown',text:'☁',onClick:save}),menuButton,menu])); const stage=el('section',{className:'lite-stage',onClick:e=>{if(e.target===stage){state.selected=null;render();}}}); stage.append(el('div',{className:'lite-axis lite-axis-y'},[el('span',{className:'axis-label axis-important',text:'Important'}),el('span',{className:'axis-label axis-not-important',text:'Not Important'})]),el('div',{className:'lite-axis lite-axis-x'},[el('span',{className:'axis-label',text:'Not Urgent'}),el('span',{className:'axis-label',text:'Urgent'})])); const layer=el('div',{className:'lite-task-layer'}); const query=(capture.value||'').toLowerCase(); w.tasks.filter(t=>t.status==='open'&&(!state.search||t.title.toLowerCase().includes(query))).forEach((t,i)=>{const pos=t.canvas||{x:quadrant(t)==='schedule'?15:68,y:quadrant(t)==='schedule'?22+i*10:24+i*12};const item=el('article',{className:`lite-task task-${quadrant(t)}`,style:`--x:${pos.x}%;--y:${pos.y}%`});item.append(el('button',{className:'lite-task-dot','aria-label':`Mark ${t.title} complete`,onClick:e=>{e.stopPropagation();markComplete(t);}}),el('button',{className:'lite-task-label',text:t.title,onClick:e=>{e.stopPropagation();state.selected=t.id;render();}}),el('span',{className:'lite-task-due',text:due(t.dueDate)}));layer.append(item);}); stage.append(layer,renderPanel(w)); canvas.append(header,stage); root.append(canvas); };
-  const renderPanel = w => { const t=w.tasks.find(x=>x.id===state.selected); if(!t){const notes=el('section',{className:'lite-notes'});const input=el('textarea',{className:'lite-notes-input','aria-label':'Notes'});input.value=w.notes;input.oninput=()=>{w.notes=input.value;w.dirty=true;};notes.append(el('div',{className:'lite-notes-heading',text:'▧  Notes'}),el('p',{className:'lite-notes-helper',text:'Jot down ideas, thoughts, or reminders...'}),input);return notes;} const panel=el('section',{className:'lite-notes is-editing'});const title=el('input',{className:'lite-editor-title',value:t.title,'aria-label':'Task title'});const dueInput=el('input',{className:'lite-editor-field',type:'date',value:t.dueDate||''});const importance=el('select',{className:'lite-editor-field'},[el('option',{value:'important',text:'Important'}),el('option',{value:'less-important',text:'Not important'})]);importance.value=t.importance;const notes=el('textarea',{className:'lite-editor-notes'});notes.value=t.notes||'';panel.append(el('div',{className:'lite-editor-kicker',text:'Task'}),title,el('label',{className:'lite-editor-label',text:'Due date'},[dueInput]),el('label',{className:'lite-editor-label',text:'Priority'},[importance]),el('label',{className:'lite-editor-label',text:'Notes'},[notes]),el('div',{className:'lite-editor-actions'},[el('button',{className:'lite-editor-save',text:'Save changes',onClick:()=>{t.title=title.value.trim()||t.title;t.dueDate=dueInput.value||null;t.importance=importance.value;t.notes=notes.value;t.updatedAt=new Date().toISOString();w.dirty=true;state.selected=null;render();}}),el('button',{className:'lite-editor-delete',text:'Delete task',onClick:()=>{t.status='cancelled';t.deletedAt=new Date().toISOString();t.updatedAt=t.deletedAt;w.dirty=true;state.selected=null;render();}})]));return panel; };
-  const renderWelcome=()=>{const card=el('main',{className:'lite-welcome'});card.append(el('h1',{text:'NorthStar Lite'}),el('p',{text:'Open a Markdown file to begin. Nothing is stored by this website.'}),el('button',{className:'lite-editor-save',text:'Open Markdown',onClick:()=>openFiles(true)}),el('button',{className:'lite-editor-delete',text:'Import Markdown',onClick:()=>openFiles(false)}));root.append(card);};
-  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&state.selected){state.selected=null;render();}}); render();
+  "use strict";
+  // The application shell may work offline; user content is never cached or retained.
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
+  }
+  const { parseMarkdown, serializeMarkdown, normalizeWorkspace } =
+    window.NorthstarMarkdown;
+  const root = document.getElementById("root");
+  const state = {
+    workspaces: new Map(),
+    activeId: null,
+    search: false,
+    query: "",
+    selectedId: null,
+    menuOpen: false,
+    settingsOpen: false,
+    historyOpen: false,
+    conflict: null,
+    undo: null,
+    notice: "",
+  };
+  const icon = (name) =>
+    `<svg class="lite-icon" aria-hidden="true" viewBox="0 0 24 24">${
+      ({
+        plus: '<path d="M12 5v14M5 12h14"/>',
+        search: '<circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/>',
+        cloud:
+          '<path d="M7 18h10a4 4 0 0 0 .4-8A6 6 0 0 0 6 9.5 4.3 4.3 0 0 0 7 18Z"/><path d="M12 8v7m-3-3 3 3 3-3"/>',
+        more:
+          '<circle cx="5" cy="12" r="1" fill="currentColor"/><circle cx="12" cy="12" r="1" fill="currentColor"/><circle cx="19" cy="12" r="1" fill="currentColor"/>',
+        download: '<path d="M12 3v12m-4-4 4 4 4-4M5 21h14"/>',
+        upload: '<path d="M12 15V3m-4 4 4-4 4 4M5 21h14"/>',
+        restore: '<path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"/>',
+        settings:
+          '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.1 2.1-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5v.2h-3v-.2a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1L6.6 17l.1-.1A1.7 1.7 0 0 0 7 15a1.7 1.7 0 0 0-1.5-1H5.3v-3h.2A1.7 1.7 0 0 0 7 10a1.7 1.7 0 0 0-.3-1.9L6.6 8 8.7 5.9l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.5v-.2h3v.2a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 8l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.5 1h.2v3h-.2a1.7 1.7 0 0 0-1.5 1Z"/>',
+        file: '<path d="M6 3h8l4 4v14H6zM14 3v5h5M9 13h6M9 17h6"/>',
+        close: '<path d="m6 6 12 12M18 6 6 18"/>',
+      })[name]
+    }</svg>`;
+  const esc = (v) =>
+    String(v ?? "").replace(
+      /[&<>"']/g,
+      (c) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      }[c]),
+    );
+  const today = () => new Date().toLocaleDateString("en-CA");
+  const active = () => state.workspaces.get(state.activeId);
+  const dirty = (w) => w.dirty = true;
+  const hash = async (text) => {
+    if (crypto.subtle) {
+      const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+      return [...new Uint8Array(bytes)].map((x) => x.toString(16).padStart(2, "0")).join("");
+    }
+    return `${text.length}:${text.slice(0, 64)}:${text.slice(-64)}`;
+  };
+  const blank = (id) =>
+    normalizeWorkspace({
+      id,
+      title: id === "work" ? "Work" : "Personal",
+      tasks: [],
+      notes: "",
+      fileName: `${id}.md`,
+    });
+  function addWorkspace(w) {
+    const id = /work/i.test(`${w.id} ${w.title}`) ? "work" : "personal";
+    w.id = id;
+    w.title = id === "work" ? "Work" : "Personal";
+    state.workspaces.set(id, w);
+    if (!state.workspaces.has("personal")) {
+      state.workspaces.set("personal", blank("personal"));
+    }
+    if (!state.workspaces.has("work")) {
+      state.workspaces.set("work", blank("work"));
+    }
+    state.activeId = id;
+  }
+  function due(d) {
+    if (!d) return "";
+    const n = new Date(`${d}T12:00:00`),
+      diff = Math.round((n - new Date(`${today()}T12:00:00`)) / 86400000);
+    return diff < 0
+      ? "Overdue"
+      : diff === 0
+      ? "Today"
+      : diff === 1
+      ? "Tomorrow"
+      : n.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  }
+  function urgencyFor(d) {
+    if (!d) return "not-urgent";
+    const days = Math.round((new Date(`${d}T12:00:00`) - new Date(`${today()}T12:00:00`)) / 86400000);
+    return days <= 7 ? "urgent" : "not-urgent";
+  }
+  function parseCapture(value) {
+    let title = value.trim(), dueDate = null;
+    let importance = /(?:^|\s)!important\b|(?:^|\s)important\b/i.test(title) ? "important" : "less-important";
+    title = title.replace(/(?:^|\s)!important\b|(?:^|\s)important\b/ig, " ").replace(/\s+/g, " ").trim();
+    const base = new Date(`${today()}T12:00:00`);
+    const iso = title.match(/\b(\d{4}-\d{2}-\d{2})\b/);
+    const relative = title.match(/\b(today|tomorrow|next\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))\b/i);
+    if (iso && !Number.isNaN(new Date(`${iso[1]}T12:00:00`).getTime())) {
+      dueDate = iso[1]; title = title.replace(iso[0], " ").replace(/\s+/g, " ").trim();
+    } else if (relative) {
+      const token = relative[1].toLowerCase();
+      if (token === "tomorrow") base.setDate(base.getDate() + 1);
+      else if (token !== "today") {
+        const days = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+        const target = days.indexOf(token.replace("next ", ""));
+        base.setDate(base.getDate() + ((target - base.getDay() + 7) % 7 || 7));
+      }
+      dueDate = base.toLocaleDateString("en-CA");
+      title = title.replace(relative[0], " ").replace(/\s+/g, " ").trim();
+    }
+    return { title: title || value.trim(), dueDate, importance };
+  }
+  function timeline() {
+    const base = new Date(`${today()}T12:00:00`);
+    return [-4, -2, 0, 2].map((offset) => {
+      const d = new Date(base); d.setDate(base.getDate() + offset);
+      return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    });
+  }
+  function quadrant(t) {
+    t.urgency = urgencyFor(t.dueDate);
+    return t.importance === "important"
+      ? (t.urgency === "urgent" ? "do-first" : "schedule")
+      : (t.urgency === "urgent" ? "reconsider" : "later");
+  }
+  function position(t, i) {
+    if (t.canvas?.x != null) return t.canvas;
+    const p = {
+        schedule: [18, 22],
+        "do-first": [67, 22],
+        reconsider: [67, 66],
+        later: [18, 66],
+      }[quadrant(t)],
+      j = (i % 4) * 6;
+    return { x: p[0] + j, y: p[1] + j };
+  }
+  function notice(m) {
+    state.notice = m;
+    render();
+  }
+  async function importFile(file, handle = null, replace = false) {
+    try {
+      const w = parseMarkdown(await file.text(), file.name);
+      w.handle = handle;
+      w.fileName = file.name;
+      w.revision = await hash(await file.text());
+      if (replace && state.activeId) {
+        w.id = state.activeId;
+        w.title = active().title;
+      }
+      addWorkspace(w);
+      state.selectedId = null;
+      state.notice = w.warnings?.join(" ") || "";
+      render();
+    } catch (e) {
+      notice(`Could not read Markdown: ${e.message}`);
+    }
+  }
+  function picker(direct = false, replace = false) {
+    if (direct && window.showOpenFilePicker) {
+      window.showOpenFilePicker({
+        types: [{
+          description: "Markdown",
+          accept: {
+            "text/markdown": [".md", ".markdown"],
+            "text/plain": [".txt"],
+          },
+        }],
+      }).then(([h]) => h.getFile().then((f) => importFile(f, h, replace)))
+        .catch((e) => {
+          if (e.name !== "AbortError") {
+            notice(`Could not open Markdown: ${e.message}`);
+          }
+        });
+      return;
+    }
+    const input = document.getElementById("markdown-file");
+    input.dataset.replace = replace ? "true" : "false";
+    input.value = "";
+    input.click();
+  }
+  async function save(download = false) {
+    const w = active(), text = serializeMarkdown(w);
+    try {
+      if (w.handle && !download) {
+        const before = await w.handle.getFile();
+        const external = await before.text();
+        if (w.revision && await hash(external) !== w.revision) {
+          state.conflict = { text: external, name: before.name || w.fileName };
+          state.notice = "The Markdown file changed outside NorthStar. Choose Reload file or Download current changes.";
+          render();
+          return;
+        }
+        const out = await w.handle.createWritable();
+        await out.write(text);
+        await out.close();
+        const verified = await (await w.handle.getFile()).text();
+        if (verified !== text) throw new Error("The browser could not verify the saved file.");
+        w.revision = await hash(verified);
+        w.dirty = false;
+        state.notice = "Saved to the opened Markdown file.";
+      } else {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(
+          new Blob([text], { type: "text/markdown;charset=utf-8" }),
+        );
+        a.download = w.fileName || `${w.id}.md`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 500);
+        w.dirty = false;
+        state.notice = "Downloaded an updated Markdown copy.";
+      }
+      render();
+    } catch (e) {
+      notice(`Could not save Markdown: ${e.message}`);
+    }
+  }
+  function update(t, changes) {
+    Object.assign(t, changes, { updatedAt: new Date().toISOString() });
+    dirty(active());
+  }
+  function menu(w) {
+    const undo = state.undo?.workspaceId === w.id;
+    return `<div class="lite-menu" ${
+      state.menuOpen ? "" : "hidden"
+    } role="menu"><div class="lite-menu-section">File</div><button class="lite-menu-item" data-action="download">${
+      icon("download")
+    }Download copy</button><button class="lite-menu-item" data-action="import">${
+      icon("upload")
+    }Import Markdown</button><button class="lite-menu-item" data-action="replace">${
+      icon("upload")
+    }Replace ${w.title}</button><button class="lite-menu-item" data-action="history">${
+      icon("restore")
+    }History</button><div class="lite-menu-separator"></div>${
+      undo
+        ? `<button class="lite-menu-item" data-action="undo">${
+          icon("restore")
+        }Undo ${state.undo.kind}</button>`
+        : ""
+    }<div class="lite-menu-separator"></div><div class="lite-menu-section">Settings</div><button class="lite-menu-item" data-action="settings">${
+      icon("settings")
+    }Settings</button></div>`;
+  }
+  function tasks(w) {
+    const q = state.query.trim().toLowerCase();
+    const occupied = new Map();
+    const placed = [];
+    return w.tasks.filter((t) =>
+      !["completed", "cancelled", "deleted"].includes(t.status) &&
+      (!state.search || `${t.title} ${t.notes} ${(t.tags || []).join(" ")} ${t.project || ""}`.toLowerCase().includes(q))
+    ).map((t, i) => {
+      const saved = position(t, i), key = `${Math.round(saved.x)}:${Math.round(saved.y)}`;
+      const collisions = occupied.get(key) || 0;
+      occupied.set(key, collisions + 1);
+      // Keep intentional positions, but fan out coincident imports so every task remains selectable.
+      let p = collisions ? {
+        x: Math.min(91, Math.max(9, saved.x + (collisions % 3) * 7)),
+        y: Math.min(88, Math.max(10, saved.y + Math.ceil(collisions / 3) * 8)),
+      } : saved;
+      // Labels can be much wider than their dot. Move a colliding row vertically
+      // before moving it sideways, so imported task names never cover each other.
+      let attempts = 0;
+      while (placed.some((other) => Math.abs(other.x - p.x) < 29 && Math.abs(other.y - p.y) < 10) && attempts < 8) {
+        p = p.y <= 77 ? { ...p, y: p.y + 12 } : { x: Math.min(91, p.x + 30), y: Math.max(10, saved.y - 12) };
+        attempts += 1;
+      }
+      placed.push(p);
+      const d = due(t.dueDate);
+      return `<article class="lite-task task-${quadrant(t)}" data-task="${
+        esc(t.id)
+      }" style="--x:${p.x}%;--y:${p.y}%"><button class="lite-task-dot" data-complete="${
+        esc(t.id)
+      }" aria-label="Mark ${
+        esc(t.title)
+      } complete"></button><button class="lite-task-label" data-select="${
+        esc(t.id)
+      }"><span class="lite-task-title">${esc(t.title)}</span>${
+        d
+          ? `<span class="lite-task-due ${
+            d === "Today" || d === "Overdue" ? "is-today" : ""
+          }">${d}</span>`
+          : ""
+      }</button></article>`;
+    }).join("");
+  }
+  function panel(w) {
+    const t = w.tasks.find((x) => x.id === state.selectedId);
+    if (!t) {
+      return `<section class="lite-notes"><div class="lite-notes-heading"><span class="notes-glyph">${
+        icon("file")
+      }</span>Notes</div><p class="lite-notes-helper">Jot down ideas, thoughts, or reminders...</p><textarea class="lite-notes-input" aria-label="${w.title} notes" placeholder="Write a note…">${
+        esc(w.notes)
+      }</textarea></section>`;
+    }
+    return `<section class="lite-notes is-editing"><div class="lite-editor-kicker">Task editor</div><input id="task-title" class="lite-editor-title" aria-label="Task title" value="${
+      esc(t.title)
+    }"><label class="lite-editor-label">Due date<input id="task-due" class="lite-editor-field" type="date" value="${
+      esc(t.dueDate || "")
+    }"></label><label class="lite-editor-label">Importance<select id="task-importance" class="lite-editor-field"><option value="important" ${
+      t.importance === "important" ? "selected" : ""
+    }>Important</option><option value="less-important" ${
+      t.importance !== "important" ? "selected" : ""
+    }>Not important</option></select></label><label class="lite-editor-label">Urgency<select id="task-urgency" class="lite-editor-field"><option value="urgent" ${
+      t.urgency === "urgent" ? "selected" : ""
+    }>Urgent</option><option value="not-urgent" ${
+      t.urgency !== "urgent" ? "selected" : ""
+    }>Not urgent</option></select></label><label class="lite-editor-label">Notes<textarea id="task-notes" class="lite-editor-notes">${
+      esc(t.notes || "")
+    }</textarea></label><div class="lite-editor-actions"><button class="lite-editor-save" data-action="save-task">Save changes</button><button class="lite-editor-delete" data-action="delete-task">Delete task</button></div></section>`;
+  }
+  function welcome() {
+    root.innerHTML = `<main class="lite-welcome"><div class="welcome-mark">${
+      icon("file")
+    }</div><h1>Open your NorthStar Markdown</h1><p>Your tasks and notes stay in this tab only. The website does not store or upload them.</p><label class="lite-file-action" for="markdown-file">${
+      icon("upload")
+    }Choose Markdown file</label>${
+      window.showOpenFilePicker
+        ? '<button class="lite-welcome-secondary" data-action="direct-open">Open for direct saving</button>'
+        : '<p class="lite-file-hint">Your browser will download an updated Markdown copy when you save.</p>'
+    }<button class="lite-welcome-secondary" data-action="new-workspace">Start a new Markdown file</button><p class="lite-file-hint">A new workspace stays in this tab until you save it as Markdown.</p><p class="lite-error" role="status">${esc(state.notice)}</p></main>`;
+  }
+  function render() {
+    if (!active()) {
+      welcome();
+      bind();
+      return;
+    }
+    const w = active(),
+      date = new Date().toLocaleDateString(undefined, {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+    root.innerHTML =
+      `<main class="lite-canvas"><header class="lite-topbar"><div class="lite-identity"><time class="lite-date">${date}</time><div class="lite-switcher" role="group" aria-label="Workspace"><button class="lite-switch ${
+        w.id === "personal" ? "active" : ""
+      }" data-workspace="personal">Personal</button><button class="lite-switch ${
+        w.id === "work" ? "active" : ""
+      }" data-workspace="work">Work</button></div>${w.dirty ? '<span class="lite-dirty" title="Unsaved changes" aria-label="Unsaved changes"></span>' : ""}</div><div class="lite-actions"><div class="lite-capture-wrap"><span class="lite-capture-icon">${
+        icon("plus")
+      }</span><input class="lite-capture" aria-label="${
+        state.search ? "Search tasks" : "Add a task"
+      }" placeholder="${
+        state.search ? "Search tasks…" : "Add a task…"
+      }" value="${
+        esc(state.query)
+      }"><button class="lite-mode-button" data-action="toggle-search" aria-label="${
+        state.search ? "Exit search" : "Search tasks"
+      }">${
+        icon(state.search ? "close" : "search")
+      }</button></div><button class="lite-save" data-action="save" aria-label="Save current Markdown workspace">${
+        icon("cloud")
+      }</button><div class="menu-anchor"><button class="lite-menu-button" data-action="toggle-menu" aria-label="Open workspace menu" aria-expanded="${state.menuOpen}">${
+        icon("more")
+      }</button>${
+        menu(w)
+      }</div></div></header><section class="lite-stage" aria-label="Priority canvas"><div class="lite-axis lite-axis-y"><span class="axis-label axis-important">Important</span><span class="axis-label axis-not-important">Not Important</span></div><div class="lite-axis lite-axis-x"><span class="axis-label">Not Urgent</span><div class="timeline">${timeline().map((label) => `<span>${label}</span>`).join("")}</div><span class="axis-label">Urgent</span></div><div class="lite-task-layer">${
+        tasks(w)
+      }</div>${panel(w)}</section><p class="lite-toast" role="status">${
+        esc(state.notice)
+      }</p><div class="lite-history" ${state.historyOpen ? "" : "hidden"}><section class="lite-history-card" role="dialog" aria-modal="true"><div class="lite-settings-header"><h2>${w.title} history</h2><button data-action="close-history" aria-label="Close history">${icon("close")}</button></div><div class="lite-history-list">${w.tasks.filter((t) => ["completed", "cancelled", "deleted"].includes(t.status)).map((t) => `<p><strong>${esc(t.title)}</strong><span>${esc(t.status)}</span></p>`).join("") || "<p>No completed or cancelled tasks yet.</p>"}</div></section></div><div class="lite-conflict" ${state.conflict ? "" : "hidden"}><section class="lite-settings-card" role="dialog" aria-modal="true"><div class="lite-settings-header"><h2>File changed outside NorthStar</h2></div><p>Reload the selected file, or download your current in-memory changes. Nothing has been overwritten.</p><div class="lite-editor-actions"><button class="lite-editor-delete" data-action="conflict-download">Download current changes</button><button class="lite-editor-save" data-action="conflict-reload">Reload file</button></div></section></div><div class="lite-settings" ${
+        state.settingsOpen ? "" : "hidden"
+      }><section class="lite-settings-card" role="dialog" aria-modal="true"><div class="lite-settings-header"><h2>Settings</h2><button data-action="close-settings" aria-label="Close settings">${
+        icon("close")
+      }</button></div><p>NorthStar Lite keeps tasks and notes only in memory for this page session. Save to your Markdown file or download a copy when ready.</p><button class="lite-reset-layout" data-action="reset-layout">Reset current layout</button></section></div></main>`;
+    bind();
+  }
+  function drag(node, t) {
+    node.addEventListener("pointerdown", (e) => {
+      const stage = node.closest(".lite-stage"), start = { x: e.clientX, y: e.clientY };
+      let moved = false;
+      const
+        move = (ev) => {
+          if (Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < 6) return;
+          moved = true;
+          const r = stage.getBoundingClientRect(),
+            x = Math.min(
+              91,
+              Math.max(9, (ev.clientX - r.left) / r.width * 100),
+            ),
+            y = Math.min(
+              88,
+              Math.max(10, (ev.clientY - r.top) / r.height * 100),
+            );
+          node.style.setProperty("--x", `${x}%`);
+          node.style.setProperty("--y", `${y}%`);
+        },
+        end = (ev) => {
+          const r = stage.getBoundingClientRect(),
+            x = Math.min(
+              91,
+              Math.max(9, (ev.clientX - r.left) / r.width * 100),
+            ),
+            y = Math.min(
+              88,
+              Math.max(10, (ev.clientY - r.top) / r.height * 100),
+            );
+          if (moved) {
+            const urgency = urgencyFor(t.dueDate);
+            const constrainedX = urgency === "urgent" ? Math.max(52, x) : Math.min(48, x);
+            node.dataset.dragged = "true";
+            update(t, { canvas: { x: Math.round(constrainedX), y: Math.round(y) }, urgency, importance: y < 43 ? "important" : "less-important" });
+          }
+          document.removeEventListener("pointermove", move);
+          if (moved) render();
+        };
+      document.addEventListener("pointermove", move);
+      document.addEventListener("pointerup", end, { once: true });
+    });
+  }
+  function bind() {
+    const input = root.querySelector(".lite-capture");
+    if (input) {
+      input.addEventListener("input", () => {
+        state.query = input.value;
+        if (state.search) render();
+      });
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !state.search && input.value.trim()) {
+          const time = new Date().toISOString();
+          const captured = parseCapture(input.value);
+          active().tasks.push({
+            id: crypto.randomUUID(),
+            title: captured.title,
+            status: "open",
+            importance: captured.importance,
+            urgency: urgencyFor(captured.dueDate),
+            dueDate: captured.dueDate,
+            notes: "",
+            createdAt: time,
+            updatedAt: time,
+            completedAt: null,
+            deletedAt: null,
+            canvas: null,
+          });
+          dirty(active());
+          state.query = "";
+          render();
+          root.querySelector(".lite-capture")?.focus();
+        }
+      });
+    }
+    root.querySelector(".lite-notes-input")?.addEventListener("input", (e) => {
+      active().notes = e.target.value;
+      dirty(active());
+    });
+    root.querySelectorAll("[data-workspace]").forEach((b) =>
+      b.onclick = () => {
+        state.activeId = b.dataset.workspace;
+        state.selectedId = null;
+        state.menuOpen = false;
+        state.notice = "";
+        render();
+      }
+    );
+    root.querySelectorAll("[data-select]").forEach((b) =>
+      b.onclick = () => {
+        state.selectedId = b.dataset.select;
+        render();
+      }
+    );
+    root.querySelectorAll("[data-complete]").forEach((b) =>
+      b.onclick = () => {
+        const t = active().tasks.find((x) => x.id === b.dataset.complete);
+        update(t, {
+          status: "completed",
+          completedAt: new Date().toISOString(),
+        });
+        state.undo = {
+          workspaceId: active().id,
+          taskId: t.id,
+          kind: "completion",
+        };
+        state.selectedId = null;
+        render();
+      }
+    );
+    root.querySelectorAll(".lite-task").forEach((n) =>
+      drag(n, active().tasks.find((t) => t.id === n.dataset.task))
+    );
+    root.querySelectorAll("[data-action]").forEach((b) =>
+      b.onclick = () => {
+        const a = b.dataset.action;
+        if (a === "direct-open") picker(true);
+        else if (a === "new-workspace") {
+          const workspace = blank("personal");
+          workspace.dirty = true;
+          addWorkspace(workspace);
+          state.notice = "New Personal workspace — save when you are ready to create its Markdown file.";
+          render();
+        }
+        else if (a === "save") save();
+        else if (a === "download") { state.menuOpen = false; save(true); }
+        else if (a === "import") { state.menuOpen = false; picker(); }
+        else if (a === "replace") { state.menuOpen = false; picker(false, true); }
+        else if (a === "history") { state.historyOpen = true; state.menuOpen = false; render(); }
+        else if (a === "toggle-menu") {
+          state.menuOpen = !state.menuOpen;
+          render();
+        } else if (a === "toggle-search") {
+          state.search = !state.search;
+          state.query = "";
+          render();
+          root.querySelector(".lite-capture")?.focus();
+        } else if (a === "settings") {
+          state.settingsOpen = true;
+          state.menuOpen = false;
+          render();
+        } else if (a === "close-settings") {
+          state.settingsOpen = false;
+          render();
+        } else if (a === "close-history") {
+          state.historyOpen = false;
+          render();
+        } else if (a === "conflict-download") {
+          state.conflict = null;
+          save(true);
+        } else if (a === "conflict-reload") {
+          const conflict = state.conflict;
+          state.conflict = null;
+          importFile(new File([conflict.text], conflict.name, { type: "text/markdown" }), active().handle, true);
+        } else if (a === "reset-layout") {
+          active().tasks.forEach((t) => update(t, { canvas: null }));
+          dirty(active());
+          state.settingsOpen = false;
+          render();
+        } else if (a === "undo") {
+          const t = active().tasks.find((x) => x.id === state.undo.taskId);
+          if (t) {
+            update(t, { status: "open", completedAt: null, deletedAt: null });
+            state.undo = null;
+            state.menuOpen = false;
+            render();
+          }
+        } else if (a === "delete-task") {
+          const t = active().tasks.find((x) => x.id === state.selectedId);
+          update(t, {
+            status: "cancelled",
+            deletedAt: new Date().toISOString(),
+          });
+          state.undo = {
+            workspaceId: active().id,
+            taskId: t.id,
+            kind: "deletion",
+          };
+          state.selectedId = null;
+          render();
+        } else if (a === "save-task") {
+          const t = active().tasks.find((x) => x.id === state.selectedId);
+          update(t, {
+            title: root.querySelector("#task-title").value.trim() || t.title,
+            dueDate: root.querySelector("#task-due").value || null,
+            importance: root.querySelector("#task-importance").value,
+            urgency: root.querySelector("#task-urgency").value,
+            notes: root.querySelector("#task-notes").value,
+          });
+          state.selectedId = null;
+          render();
+        }
+      }
+    );
+    root.querySelector(".lite-stage")?.addEventListener("click", (e) => {
+      if (e.target.classList.contains("lite-stage")) {
+        state.selectedId = null;
+        render();
+      }
+    });
+  }
+  document.getElementById("markdown-file").addEventListener("change", (e) => {
+    const f = e.target.files?.[0];
+    if (f) importFile(f, null, e.target.dataset.replace === "true");
+  });
+  document.addEventListener("click", (e) => {
+    if (state.menuOpen && !e.target.closest(".menu-anchor")) {
+      state.menuOpen = false;
+      render();
+    }
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (state.conflict) state.conflict = null;
+    else if (state.settingsOpen) state.settingsOpen = false;
+    else if (state.historyOpen) state.historyOpen = false;
+    else if (state.menuOpen) state.menuOpen = false;
+    else if (state.search) {
+      state.search = false;
+      state.query = "";
+    } else if (state.selectedId) state.selectedId = null;
+    else return;
+    render();
+  });
+  window.addEventListener("beforeunload", (event) => {
+    if ([...state.workspaces.values()].some((workspace) => workspace.dirty)) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+  });
+  render();
 })();
